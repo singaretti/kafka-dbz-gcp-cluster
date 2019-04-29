@@ -1,0 +1,112 @@
+===========================
+= K A F K A | B R O K E R =
+===========================
+
+rpm --import https://packages.confluent.io/rpm/5.2/archive.key &&
+echo '[Confluent.dist]' > /etc/yum.repos.d/confluent.repo &&
+echo 'name=Confluent repository (dist)' >> /etc/yum.repos.d/confluent.repo &&
+echo 'baseurl=https://packages.confluent.io/rpm/5.2/7' >> /etc/yum.repos.d/confluent.repo &&
+echo 'gpgcheck=1' >> /etc/yum.repos.d/confluent.repo &&
+echo 'gpgkey=https://packages.confluent.io/rpm/5.2/archive.key' >> /etc/yum.repos.d/confluent.repo &&
+echo 'enabled=1' >> /etc/yum.repos.d/confluent.repo &&
+echo '[Confluent]' >> /etc/yum.repos.d/confluent.repo &&
+echo 'name=Confluent repository' >> /etc/yum.repos.d/confluent.repo &&
+echo 'baseurl=https://packages.confluent.io/rpm/5.2' >> /etc/yum.repos.d/confluent.repo &&
+echo 'gpgcheck=1' >> /etc/yum.repos.d/confluent.repo &&
+echo 'gpgkey=https://packages.confluent.io/rpm/5.2/archive.key' >> /etc/yum.repos.d/confluent.repo &&
+echo 'enabled=1' >> /etc/yum.repos.d/confluent.repo &&
+echo 'vm.swappiness=0' | sudo tee --append /etc/sysctl.conf &&
+yum clean all &&
+yum update -y &&
+yum install -y confluent-community-2.12 nc java-1.8.0-openjdk jq &&
+echo 'LANG=en_US.utf-8' >> /etc/environment &&
+echo 'LC_ALL=en_US.utf-8' >> /etc/environment &&
+chown cp-kafka:confluent /var/log/confluent &&
+chmod u+wx,g+wx,o= /var/log/confluent &&
+mkdir -p -m 777 /data/kafka &&
+cp /etc/kafka/server.properties /etc/kafka/server.properties.bkp &&
+echo 'zookeeper.connect=zookeeper-1:2181,zookeeper-2:2181,zookeeper-3:2181/kafka' > /etc/kafka/server.properties &&
+echo 'broker.id.generation.enable=true' >> /etc/kafka/server.properties &&
+echo 'group.initial.rebalance.delay.ms=10000' >> /etc/kafka/server.properties &&
+echo 'log.dirs=/data/kafka' >> /etc/kafka/server.properties &&
+echo 'log.retention.hours=672' >> /etc/kafka/server.properties &&
+echo 'log.segment.bytes=1073741824' >> /etc/kafka/server.properties &&
+echo 'log.retention.check.interval.ms=300000' >> /etc/kafka/server.properties &&
+echo 'confluent.support.metrics.enable=false' >> /etc/kafka/server.properties &&
+echo 'delete.topic.enable=true' >> /etc/kafka/server.properties &&
+echo 'num.partitions=2' >> /etc/kafka/server.properties &&
+echo 'default.replication.factor=2' >> /etc/kafka/server.properties &&
+echo 'min.insync.replicas=2' >> /etc/kafka/server.properties &&
+echo 'offsets.topic.replication.factor=2' >> /etc/kafka/server.properties &&
+echo 'zookeeper.connection.timeout.ms=10000' >> /etc/kafka/server.properties &&
+echo 'auto.create.topics.enable=true' >> /etc/kafka/server.properties &&
+echo 'transaction.state.log.replication.factor=2' >> /etc/kafka/server.properties &&
+echo 'transaction.state.log.min.isr=2' >> /etc/kafka/server.properties &&
+echo 'group.initial.rebalance.delay.ms=11000' >> /etc/kafka/server.properties &&
+sed -i 's/-Xms256M -Xmx2G/-Xms256M -Xmx3G/g' /usr/bin/connect-distributed &&
+
+================================
+= S C H E M A  R E G I S T R Y =
+================================
+
+cp /etc/schema-registry/schema-registry.properties /etc/schema-registry/schema-registry.properties.bkp &&
+echo 'listeners=http://0.0.0.0:8081 ' > /etc/schema-registry/schema-registry.properties &&
+echo 'kafkastore.topic=schemas' >> /etc/schema-registry/schema-registry.properties &&
+echo 'debug=false' >> /etc/schema-registry/schema-registry.properties &&
+echo 'kafkastore.bootstrap.servers=PLAINTEXT://kafka-1:9092,kafka-2:9092,kafka-3:9092' >> /etc/schema-registry/schema-registry.properties
+
+======================
+= K A F K A  R E S T =
+======================
+
+cp /etc/kafka-rest/kafka-rest.properties /etc/kafka-rest/kafka-rest.properties.bkp &&
+echo 'schema.registry.url=http://localhost:8081' > /etc/kafka-rest/kafka-rest.properties &&
+echo 'bootstrap.servers=PLAINTEXT://kafka-1:9092,kafka-2:9092,kafka-3:9092' >> /etc/kafka-rest/kafka-rest.properties &&
+echo 'access.control.allow.methods=GET,POST,PUT,DELETE,OPTIONS' >> /etc/kafka-rest/kafka-rest.properties &&
+echo 'access.control.allow.origin=*' >> /etc/kafka-rest/kafka-rest.properties &&
+if [ `hostname | sed 's@^[^0-9]*\([0-9]\+\).*@\1@'` -eq 1 ]
+    then
+        echo 'id=kafka-rest-test-server1' >> /etc/kafka-rest/kafka-rest.properties
+fi
+if [ `hostname | sed 's@^[^0-9]*\([0-9]\+\).*@\1@'` -eq 2 ]
+    then
+        echo 'id=kafka-rest-test-server2' >> /etc/kafka-rest/kafka-rest.properties
+fi
+if [ `hostname | sed 's@^[^0-9]*\([0-9]\+\).*@\1@'` -eq 3 ]
+    then
+        echo 'id=kafka-rest-test-server3' >> /etc/kafka-rest/kafka-rest.properties
+fi
+
+=============
+= K A F K A =
+=============
+
+systemctl start confluent-kafka
+systemctl stop confluent-kafka
+
+systemctl status -l confluent-kafka
+tail -f /var/log/kafka/server.log
+
+================================
+= S C H E M A  R E G I S T R Y =
+================================
+
+systemctl start confluent-schema-registry
+systemctl stop confluent-schema-registry
+
+systemctl status -l confluent-schema-registry
+tail -f /var/log/confluent/schema-registry/schema-registry.log
+
+==================
+= R E S T  A P I =
+==================
+
+systemctl start confluent-kafka-rest
+systemctl stop confluent-kafka-rest
+
+systemctl status -l confluent-kafka-rest
+tail -f /var/log/confluent/kafka-rest/kafka-rest.log
+
+==================================
+= B R O K E R  | T E R M I N A L =
+==================================

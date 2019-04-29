@@ -1,0 +1,95 @@
+============================
+= K A F K A  C O N N E C T =
+============================
+
+rpm --import https://packages.confluent.io/rpm/5.2/archive.key &&
+echo '[Confluent.dist]' > /etc/yum.repos.d/confluent.repo &&
+echo 'name=Confluent repository (dist)' >> /etc/yum.repos.d/confluent.repo &&
+echo 'baseurl=https://packages.confluent.io/rpm/5.2/7' >> /etc/yum.repos.d/confluent.repo &&
+echo 'gpgcheck=1' >> /etc/yum.repos.d/confluent.repo &&
+echo 'gpgkey=https://packages.confluent.io/rpm/5.2/archive.key' >> /etc/yum.repos.d/confluent.repo &&
+echo 'enabled=1' >> /etc/yum.repos.d/confluent.repo &&
+echo '[Confluent]' >> /etc/yum.repos.d/confluent.repo &&
+echo 'name=Confluent repository' >> /etc/yum.repos.d/confluent.repo &&
+echo 'baseurl=https://packages.confluent.io/rpm/5.2' >> /etc/yum.repos.d/confluent.repo &&
+echo 'gpgcheck=1' >> /etc/yum.repos.d/confluent.repo &&
+echo 'gpgkey=https://packages.confluent.io/rpm/5.2/archive.key' >> /etc/yum.repos.d/confluent.repo &&
+echo 'enabled=1' >> /etc/yum.repos.d/confluent.repo &&
+echo 'vm.swappiness=0' | sudo tee --append /etc/sysctl.conf &&
+yum clean all &&
+yum update -y &&
+yum install -y unzip confluent-community-2.12 nc java-1.8.0-openjdk jq wget &&
+echo 'LANG=en_US.utf-8' >> /etc/environment &&
+echo 'LC_ALL=en_US.utf-8' >> /etc/environment &&
+chown cp-kafka:confluent /var/log/confluent &&
+chmod u+wx,g+wx,o= /var/log/confluent &&
+chmod g+w /var/log/kafka &&
+cp /etc/kafka/connect-distributed.properties /etc/kafka/connect-distributed.properties.bkp &&
+echo 'bootstrap.servers=kafka-1:9092,kafka-2:9092,kafka-3:9092' > /etc/kafka/connect-distributed.properties &&
+echo 'group.id=connect-cluster' >> /etc/kafka/connect-distributed.properties &&
+echo 'key.converter=io.confluent.connect.avro.AvroConverter' >> /etc/kafka/connect-distributed.properties &&
+echo 'value.converter=io.confluent.connect.avro.AvroConverter' >> /etc/kafka/connect-distributed.properties &&
+echo 'config.storage.topic=connect-configs' >> /etc/kafka/connect-distributed.properties &&
+echo 'offset.storage.topic=connect-offsets' >> /etc/kafka/connect-distributed.properties &&
+echo 'status.storage.topic=connect-statuses' >> /etc/kafka/connect-distributed.properties &&
+echo 'config.storage.replication.factor=2' >> /etc/kafka/connect-distributed.properties &&
+echo 'offset.storage.replication.factor=2' >> /etc/kafka/connect-distributed.properties &&
+echo 'status.storage.replication.factor=2' >> /etc/kafka/connect-distributed.properties &&
+echo 'internal.key.converter=org.apache.kafka.connect.json.JsonConverter' >> /etc/kafka/connect-distributed.properties &&
+echo 'internal.value.converter=org.apache.kafka.connect.json.JsonConverter' >> /etc/kafka/connect-distributed.properties &&
+echo 'internal.key.converter.schemas.enable=false' >> /etc/kafka/connect-distributed.properties &&
+echo 'internal.value.converter.schemas.enable=false' >> /etc/kafka/connect-distributed.properties &&
+echo 'plugin.path=/usr/share/java' >> /etc/kafka/connect-distributed.properties &&
+echo 'offset.flush.interval.ms=20000' >> /etc/kafka/connect-distributed.properties &&
+echo 'buffer.memory=16777216' >> /etc/kafka/connect-distributed.properties &&
+echo 'offset.flush.timeout.ms=100000' >> /etc/kafka/connect-distributed.properties &&
+sed -i 's/-Xms256M -Xmx2G/-Xms256M -Xmx6G/g' /usr/bin/connect-distributed &&
+cp /etc/kafka/connect-log4j.properties /etc/kafka/connect-log4j.properties.bkp &&
+echo 'log4j.appender.FILE=org.apache.log4j.DailyRollingFileAppender' >> /etc/kafka/connect-log4j.properties &&
+echo 'log4j.appender.FILE.DatePattern='.'yyyy-MM-dd' >> /etc/kafka/connect-log4j.properties &&
+echo 'log4j.appender.FILE.File=/var/log/kafka/connect.log' >> /etc/kafka/connect-log4j.properties &&
+echo 'log4j.appender.FILE.layout=org.apache.log4j.PatternLayout' >> /etc/kafka/connect-log4j.properties &&
+echo 'log4j.appender.FILE.layout.ConversionPattern=[%d] %p %m (%c)%n' >> /etc/kafka/connect-log4j.properties &&
+sed -i 's/log4j.rootLogger=INFO, stdout/log4j.rootLogger=INFO, stdout, FILE/g' /etc/kafka/connect-log4j.properties &&
+if [ `hostname | sed 's@^[^0-9]*\([0-9]\+\).*@\1@'` -eq 1 ]
+    then
+        echo 'key.converter.schema.registry.url=http://kafka-1:8081' >> /etc/kafka/connect-distributed.properties
+        echo 'value.converter.schema.registry.url=http://kafka-1:8081' >> /etc/kafka/connect-distributed.properties
+fi
+if [ `hostname | sed 's@^[^0-9]*\([0-9]\+\).*@\1@'` -eq 2 ]
+    then
+        echo 'key.converter.schema.registry.url=http://kafka-2:8081' >> /etc/kafka/connect-distributed.properties
+        echo 'value.converter.schema.registry.url=http://kafka-2:8081' >> /etc/kafka/connect-distributed.properties
+fi
+if [ `hostname | sed 's@^[^0-9]*\([0-9]\+\).*@\1@'` -eq 3 ]
+    then
+        echo 'key.converter.schema.registry.url=http://kafka-3:8081' >> /etc/kafka/connect-distributed.properties
+        echo 'value.converter.schema.registry.url=http://kafka-3:8081' >> /etc/kafka/connect-distributed.properties
+fi
+
+============================
+= K A F K A  C O N N E C T =
+============================
+
+systemctl start confluent-kafka-connect
+systemctl stop confluent-kafka-connect
+
+systemctl status -l confluent-kafka-connect
+
+================================
+= C O N N E C T  V E R S I O N =
+================================
+
+curl localhost:8083/ | jq -r
+
+=======================================
+= C O N N E C T O R S  O N  K A F K A =
+=======================================
+
+curl localhost:8083/connectors/ | jq -r
+
+=====================================
+= C O N N E C T O R  P L U G I N S  =
+=====================================
+
+curl localhost:8083/connector-plugins | jq -r

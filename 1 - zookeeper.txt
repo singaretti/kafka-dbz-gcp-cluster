@@ -1,0 +1,76 @@
+=====================
+= Z O O K E E P E R =
+=====================
+
+# O ideal é automatizar esta criação, utilizando algum outro método que defina os "server.N".
+# Utilizei o if abaixo somente para facilitar o teste e explicar a configuração de cluster.
+
+rpm --import https://packages.confluent.io/rpm/5.2/archive.key &&
+echo '[Confluent.dist]' > /etc/yum.repos.d/confluent.repo &&
+echo 'name=Confluent repository (dist)' >> /etc/yum.repos.d/confluent.repo &&
+echo 'baseurl=https://packages.confluent.io/rpm/5.2/7' >> /etc/yum.repos.d/confluent.repo &&
+echo 'gpgcheck=1' >> /etc/yum.repos.d/confluent.repo &&
+echo 'gpgkey=https://packages.confluent.io/rpm/5.2/archive.key' >> /etc/yum.repos.d/confluent.repo &&
+echo 'enabled=1' >> /etc/yum.repos.d/confluent.repo &&
+echo '[Confluent]' >> /etc/yum.repos.d/confluent.repo &&
+echo 'name=Confluent repository' >> /etc/yum.repos.d/confluent.repo &&
+echo 'baseurl=https://packages.confluent.io/rpm/5.2' >> /etc/yum.repos.d/confluent.repo &&
+echo 'gpgcheck=1' >> /etc/yum.repos.d/confluent.repo &&
+echo 'gpgkey=https://packages.confluent.io/rpm/5.2/archive.key' >> /etc/yum.repos.d/confluent.repo &&
+echo 'enabled=1' >> /etc/yum.repos.d/confluent.repo &&
+echo 'vm.swappiness=0' | sudo tee --append /etc/sysctl.conf &&
+yum clean all &&
+yum update -y &&
+yum install -y confluent-community-2.12 nc java-1.8.0-openjdk jq &&
+echo 'LANG=en_US.utf-8' >> /etc/environment &&
+echo 'LC_ALL=en_US.utf-8' >> /etc/environment &&
+mkdir -p -m 777 /data/zookeeper &&
+hostname | sed 's@^[^0-9]*\([0-9]\+\).*@\1@' > /data/zookeeper/myid &&
+chown cp-kafka:confluent /var/log/confluent &&
+chmod u+wx,g+wx,o= /var/log/confluent &&
+cp /etc/kafka/zookeeper.properties /etc/kafka/zookeeper.properties.bkp &&
+echo 'dataDir=/data/zookeeper' > /etc/kafka/zookeeper.properties &&
+echo 'clientPort=2181' >> /etc/kafka/zookeeper.properties &&
+echo 'maxClientCnxns=15' >> /etc/kafka/zookeeper.properties &&
+echo 'tickTime=2000' >> /etc/kafka/zookeeper.properties &&
+echo 'initLimit=5' >> /etc/kafka/zookeeper.properties &&
+echo 'syncLimit=2' >> /etc/kafka/zookeeper.properties &&
+echo 'autopurge.snapRetainCount=3' >> /etc/kafka/zookeeper.properties &&
+echo 'autopurge.purgeInterval=48' >> /etc/kafka/zookeeper.properties &&
+sed -i 's/-Xms256M -Xmx2G/-Xms256M -Xmx1G/g' /usr/bin/connect-distributed
+if [ `hostname | sed 's@^[^0-9]*\([0-9]\+\).*@\1@'` -eq 1 ]
+    then
+        echo 'server.1=0.0.0.0.0:2888:3888' >> /etc/kafka/zookeeper.properties
+        echo 'server.2=zookeeper-2:2888:3888' >> /etc/kafka/zookeeper.properties
+        echo 'server.3=zookeeper-3:2888:3888' >> /etc/kafka/zookeeper.properties
+fi
+if [ `hostname | sed 's@^[^0-9]*\([0-9]\+\).*@\1@'` -eq 2 ]
+    then
+        echo 'server.1=zookeeper-1:2888:3888' >> /etc/kafka/zookeeper.properties
+        echo 'server.2=0.0.0.0:2888:3888' >> /etc/kafka/zookeeper.properties
+        echo 'server.3=zookeeper-3:2888:3888' >> /etc/kafka/zookeeper.properties
+fi
+if [ `hostname | sed 's@^[^0-9]*\([0-9]\+\).*@\1@'` -eq 3 ]
+    then
+        echo 'server.1=zookeeper-1:2888:3888' >> /etc/kafka/zookeeper.properties
+        echo 'server.2=zookeeper-2:2888:3888' >> /etc/kafka/zookeeper.properties
+        echo 'server.3=0.0.0.0:2888:3888' >> /etc/kafka/zookeeper.properties
+fi
+
+=====================
+= Z O O K E E P E R =
+=====================
+
+systemctl start confluent-zookeeper
+systemctl stop confluent-zookeeper
+
+systemctl status -l confluent-zookeeper
+tail -f /var/log/kafka/server.log
+
+=======================================
+= Z O O K E E P E R | T E R M I N A L =
+=======================================
+
+echo "stat" | nc localhost 2181 ; echo
+
+echo envi | nc localhost 2181
