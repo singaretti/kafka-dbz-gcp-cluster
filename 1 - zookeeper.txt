@@ -37,7 +37,7 @@ echo 'initLimit=5' >> /etc/kafka/zookeeper.properties &&
 echo 'syncLimit=2' >> /etc/kafka/zookeeper.properties &&
 echo 'autopurge.snapRetainCount=3' >> /etc/kafka/zookeeper.properties &&
 echo 'autopurge.purgeInterval=48' >> /etc/kafka/zookeeper.properties &&
-sed -i 's/-Xms256M -Xmx2G/-Xms256M -Xmx1G/g' /usr/bin/connect-distributed
+sed -i 's/-Xmx512M -Xms512M/-Xmx1G -Xms1G/g' /usr/bin/zookeeper-server-start
 if [ `hostname | sed 's@^[^0-9]*\([0-9]\+\).*@\1@'` -eq 1 ]
     then
         echo 'server.1=0.0.0.0.0:2888:3888' >> /etc/kafka/zookeeper.properties
